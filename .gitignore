@@ -3,6 +3,7 @@ node_modules
 
 # IntelliJ based IDEs
 .idea
+**/*.iml
 
 # Finder (MacOS) folder config
 .DS_Store

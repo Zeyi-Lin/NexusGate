@@ -3,15 +3,14 @@
 <h1>NexusGate</h1>
 仅需一行代码，完成 Agent 应用的监控与管理
 
-[![GitHub license](https://img.shields.io/github/license/geekchange/nexusgate)](https://github.com/geekchange/nexusgate/blob/main/LICENSE)
-[![Docker Pulls](https://img.shields.io/docker/pulls/geekchange/nexusgate)](https://hub.docker.com/r/geekchange/nexusgate)
-[![GitHub stars](https://img.shields.io/github/stars/geekchange/nexusgate)](https://github.com/geekchange/nexusgate/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/geekchange/nexusgate)](https://github.com/geekchange/nexusgate/issues)
+[![GitHub license](https://img.shields.io/github/license/geektechx/nexusgate)](https://github.com/geektechx/nexusgate/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/geektechx/nexusgate)](https://github.com/geektechx/nexusgate/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/geektechx/nexusgate)](https://github.com/geektechx/nexusgate/issues)
 [![Free Use](https://img.shields.io/badge/free-pricing?logo=free&color=%20%23155EEF&label=pricing&labelColor=%20%23528bff)](https://img.shields.io/badge/free-pricing?logo=free&color=%20%23155EEF&label=pricing&labelColor=%20%23528bff)
 </div>
 
 <div align="right">
-  <a href="CONTRIBUTING.md">English</a>
+  <a href="README.en.md">English</a>
 </div>
 
 - [🚀 简介](#-简介)
@@ -45,32 +44,12 @@ NexusGate 是一个 Agent 应用监控和管理平台。它将帮助 Agent 应�
 
 ## 🐳 快速启动
 
-NexusGate 提供 Docker 镜像，支持 ARM 和 x86 架构。
+NexusGate 提供 Docker Compose 配置文件，支持 ARM 和 x86 架构。
 
 ```bash
-# 拉取最新镜像
-docker pull geekchange/nexusgate:latest
-
-# 使用默认配置运行
-docker run -d -p 3000:3000 -p 8000:8000 \
-  --name nexusgate \
-  -v nexusgate-data:/app/data \
-  geekchange/nexusgate:latest
-
-# 访问仪表板
-# 在浏览器中打开 http://localhost:3000
-```
-
-高级配置：
-
-```bash
-# 使用环境变量运行
-docker run -d -p 3000:3000 -p 8000:8000 \
-  --name nexusgate \
-  -v nexusgate-data:/app/data \
-  -e DATABASE_URL="postgresql://user:password@host:port/dbname" \
-  -e AUTH_SECRET="your-secret-key" \
-  geekchange/nexusgate:latest
+wget https://github.com/GeekTechX/NexusGate/raw/refs/heads/main/docker-compose.yaml
+nano docker-compose.yaml # 或者使用其他文本编辑器
+docker compose up -d
 ```
 
 ## 🔍 系统功能
@@ -137,7 +116,7 @@ const openai = new OpenAI({
 NexusGate 提供全面的 OpenAPI 文档，便于与您现有的系统和工作流程集成。可以通过以下地址访问 OpenAPI 规范：
 
 ```
-https://your-nexusgate-server/api/docs
+https://your-nexusgate-server/swagger
 ```
 
 该文档包括所有可用端点、请求/响应格式和身份验证要求，使开发者能够快速理解并利用 NexusGate 的全部功能。
@@ -184,7 +163,7 @@ NexusGate 为管理组织所有 LLM 应用提供统一仪表板：
 
 **Contributors**
 
-<img src="https://contrib.rocks/image?repo=GeekChange/NexusGate" />
+<img src="https://contrib.rocks/image?repo=GeekTechX/NexusGate" />
 
 ## 📚 文档
 

@@ -10,7 +10,7 @@ RUN cd frontend && bun run build
 FROM nginx:alpine AS runner
 COPY ./nginx-entrypoint.sh /nginx-entrypoint.sh
 COPY --from=builder /app/frontend/dist/ /var/www/html/
-LABEL org.opencontainers.image.source="https://github.com/GeekChange/NexusGate"
+LABEL org.opencontainers.image.source="https://github.com/GeekTechX/NexusGate"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 EXPOSE 80/tcp
 CMD ["/bin/sh", "/nginx-entrypoint.sh"]

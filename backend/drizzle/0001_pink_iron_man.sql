@@ -1,0 +1,1 @@
+ALTER TABLE "upstreams" ADD COLUMN "upstream_model" varchar(63);

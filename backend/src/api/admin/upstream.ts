@@ -17,6 +17,7 @@ export const adminUpstream = new Elysia()
     {
       body: t.Object({
         model: t.String(),
+        upstreamModel: t.String(),
         name: t.String(),
         url: t.String(),
         apiKey: t.Optional(t.String()),

@@ -13,6 +13,6 @@ COPY --from=builder /app/backend/out/index.js /app/index.js
 COPY --from=builder /app/backend/drizzle /app/drizzle
 USER bun
 EXPOSE 3000/tcp
-LABEL org.opencontainers.image.source="https://github.com/GeekChange/NexusGate"
+LABEL org.opencontainers.image.source="https://github.com/GeekTechX/NexusGate"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 ENTRYPOINT [ "bun", "run", "index.js" ]

@@ -22,7 +22,7 @@ const db = (() => {
   return globalThis_.db;
 })();
 await migrate(db, {
-  migrationsFolder: "drizzle"
+  migrationsFolder: "drizzle",
 });
 
 export type ApiKey = typeof schema.ApiKeysTable.$inferSelect;

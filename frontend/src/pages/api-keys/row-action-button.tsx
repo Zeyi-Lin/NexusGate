@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowUpDownIcon, CopyIcon, MoreHorizontalIcon, OctagonXIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { useCopyToClipboard } from 'usehooks-ts'
 
 import { api } from '@/lib/api'
 import { newApiError } from '@/lib/error'
@@ -25,11 +24,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useCopy } from '@/hooks/use-copy'
 
 import type { ApiKey } from './columns'
 
 export const RowActionButton = ({ data }: { data: ApiKey }) => {
-  const [, copy] = useCopyToClipboard()
+  const { copy } = useCopy({
+    showSuccessToast: true,
+    successToastMessage: 'API key copied to clipboard.',
+  })
   const navigate = useNavigate()
 
   const queryClient = useQueryClient()
@@ -81,13 +84,7 @@ export const RowActionButton = ({ data }: { data: ApiKey }) => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <DropdownMenuItem
-            onClick={() => {
-              copy(data.key)
-                .then(() => toast.success('API key copied to clipboard.'))
-                .catch((err) => toast.error(`Failed to copy: ${err}`))
-            }}
-          >
+          <DropdownMenuItem onClick={() => copy(data.key)}>
             <CopyIcon />
             Copy API Key
           </DropdownMenuItem>

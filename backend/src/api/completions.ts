@@ -6,6 +6,7 @@ import { addCompletions, type Completion } from "../utils/completions";
 import { parseSse } from "../utils/sse";
 import { consola } from "consola";
 import { selectUpstream } from "@/utils/upstream";
+import type { ChatCompletionMessage } from "openai/src/resources/index.js";
 
 const logger = consola.withTag("completionsApi");
 
@@ -46,7 +47,9 @@ export const completionsApi = new Elysia({
       if (!upstream) {
         return error(404, "Model not found");
       }
+      const requestedModel = body.model;
       const upstreamEndpoint = `${upstream.url}/chat/completions`;
+      body.model = upstream.upstreamModel ?? upstream.model;
 
       const reqInit: RequestInit = {
         method: "POST",
@@ -59,7 +62,7 @@ export const completionsApi = new Elysia({
       };
 
       const completion: Completion = {
-        model: body.model,
+        model: requestedModel,
         upstreamId: upstream.id,
         prompt: {
           messages: body.messages.map((u) => {
@@ -86,20 +89,32 @@ export const completionsApi = new Elysia({
             upstreamEndpoint,
           });
           const begin = Date.now();
-          const resp = await fetch(upstreamEndpoint, {
+          const [resp, err] = await fetch(upstreamEndpoint, {
             body: JSON.stringify(body),
             ...reqInit,
-          }).catch((err) => {
-            logger.error("fetch error", err);
-            return undefined;
-          });
+          })
+            .then((r) => [r, null] as [Response, null])
+            .catch((err) => {
+              logger.error("fetch error", err);
+              return [null, err] as [null, Error];
+            });
           if (!resp) {
             logger.error("upstream error", {
               status: 500,
               msg: "Failed to fetch upstream",
             });
             completion.status = "failed";
-            addCompletions(completion, bearer);
+            addCompletions(completion, bearer, {
+              level: "error",
+              message: `Failed to fetch upstream. ${err.toString()}`,
+              details: {
+                type: "completionError",
+                data: {
+                  type: "fetchError",
+                  msg: err.toString(),
+                },
+              },
+            });
             return error(500, "Failed to fetch upstream");
           }
           if (!resp.ok) {
@@ -109,7 +124,18 @@ export const completionsApi = new Elysia({
               msg,
             });
             completion.status = "failed";
-            addCompletions(completion, bearer);
+            addCompletions(completion, bearer, {
+              level: "error",
+              message: `Upstream error: ${msg}`,
+              details: {
+                type: "completionError",
+                data: {
+                  type: "upstreamError",
+                  status: resp.status,
+                  msg,
+                },
+              },
+            });
             return error(resp.status, msg);
           }
           const respText = await resp.text();
@@ -120,10 +146,15 @@ export const completionsApi = new Elysia({
           completion.status = "completed";
           completion.ttft = Date.now() - begin;
           completion.duration = Date.now() - begin;
-          completion.completion = respJson.choices.map((c) => ({
-            role: c.message.role as string,
-            content: c.message.content ?? undefined,
-          }));
+          completion.completion = respJson.choices.map((c) => {
+            const msg = c.message as ChatCompletionMessage & { reasoning_content?: string };
+            return {
+              role: c.message.role as string,
+              content:
+                (msg.reasoning_content ? `<think>${msg.reasoning_content}</think>\n` : "") +
+                (msg.content ?? undefined),
+            };
+          });
           addCompletions(completion, bearer);
 
           return respText;
@@ -145,19 +176,32 @@ export const completionsApi = new Elysia({
             stream: true,
           });
           const begin = Date.now();
-          const resp = await fetch(upstreamEndpoint, {
+          const [resp, err] = await fetch(upstreamEndpoint, {
             body: JSON.stringify(body),
             ...reqInit,
-          }).catch((err) => {
-            logger.error("upstream error", err);
-            return undefined;
-          });
+          })
+            .then((r) => [r, null] as [Response, null])
+            .catch((err) => {
+              logger.error("fetch error", err);
+              return [null, err] as [null, Error];
+            });
           if (!resp) {
             logger.error("upstream error", {
               status: 500,
               msg: "Failed to fetch upstream",
             });
-            addCompletions(completion, bearer);
+            completion.status = "failed";
+            addCompletions(completion, bearer, {
+              level: "error",
+              message: `Failed to fetch upstream. ${err.toString()}`,
+              details: {
+                type: "completionError",
+                data: {
+                  type: "fetchError",
+                  msg: err.toString(),
+                },
+              },
+            });
             return error(500, "Failed to fetch upstream");
           }
           if (!resp.ok) {
@@ -166,7 +210,19 @@ export const completionsApi = new Elysia({
               status: resp.status,
               msg,
             });
-            addCompletions(completion, bearer);
+            completion.status = "failed";
+            addCompletions(completion, bearer, {
+              level: "error",
+              message: `Upstream error: ${msg}`,
+              details: {
+                type: "completionError",
+                data: {
+                  type: "upstreamError",
+                  status: resp.status,
+                  msg,
+                },
+              },
+            });
             return error(resp.status, msg);
           }
           if (!resp.body) {
@@ -174,15 +230,29 @@ export const completionsApi = new Elysia({
               status: resp.status,
               msg: "No body",
             });
-            addCompletions(completion, bearer);
+            completion.status = "failed";
+            addCompletions(completion, bearer, {
+              level: "error",
+              message: "No body",
+              details: {
+                type: "completionError",
+                data: {
+                  type: "upstreamError",
+                  status: resp.status,
+                  msg: "No body",
+                },
+              },
+            });
             return error(500, "No body");
           }
 
+          logger.debug("parse stream completions response");
           const chunks: AsyncGenerator<string> = parseSse(resp.body);
 
           let ttft = -1;
           let isFirstChunk = true;
-          const partials = [];
+          const partials: string[] = [];
+          const extendedTags: { think?: string[] } = {};
           for await (const chunk of chunks) {
             if (isFirstChunk) {
               // log the time to first chunk as ttft
@@ -193,7 +263,14 @@ export const completionsApi = new Elysia({
               // Workaround: In most cases, upstream will return a message that is a valid json, and has length of choices = 0,
               //   which will be handled in below. However, in some cases, the last message is '[DONE]', and no usage is returned.
               //   In this case, we will end this completion.
-              completion.completion = [{ role: undefined, content: partials.join("") }];
+              completion.completion = [
+                {
+                  role: undefined,
+                  content:
+                    (extendedTags.think ? `<think>${extendedTags.think.join("")}</think>\n` : "") +
+                    partials.join(""),
+                },
+              ];
               completion.status = "completed";
               completion.ttft = ttft;
               completion.duration = Date.now() - begin;
@@ -218,18 +295,44 @@ export const completionsApi = new Elysia({
               return error(500, "Invalid JSON");
             }
 
-            if (data.choices.length === 1) {
+            if (data.choices.length === 1 && data.choices[0].finish_reason !== "stop") {
               // If there is only one choice, regular chunk
-              const content = data.choices[0].delta.content ?? "";
-              partials.push(content);
+              const delta = data.choices[0].delta;
+              const content = delta.content;
+              if (content) {
+                partials.push(content);
+              } else {
+                const delta_ = delta as unknown as {
+                  reasoning_content?: string;
+                };
+                if (delta_.reasoning_content) {
+                  // workaround: api.deepseek.com returns reasoning_content in delta
+                  if (extendedTags.think === undefined) {
+                    extendedTags.think = [];
+                  }
+                  extendedTags.think.push(delta_.reasoning_content);
+                }
+              }
               yield `data: ${chunk}\n\n`;
               continue;
             }
-            if (data.choices.length === 0) {
+            // work around: api.deepseek.com returns choices with empty content and finish_reason = "stop" in usage response
+            if (
+              data.choices.length === 0 ||
+              (data.choices.length === 1 && data.choices[0].finish_reason === "stop")
+            ) {
               // Assuse that is the last chunk
+              console.log(data.usage);
               completion.promptTokens = data.usage?.prompt_tokens ?? -1;
               completion.completionTokens = data.usage?.completion_tokens ?? -1;
-              completion.completion = [{ role: undefined, content: partials.join("") }];
+              completion.completion = [
+                {
+                  role: undefined,
+                  content:
+                    (extendedTags.think ? `<think>${extendedTags.think.join("")}</think>\n` : "") +
+                    partials.join(""),
+                },
+              ];
               completion.status = "completed";
               completion.ttft = ttft;
               completion.duration = Date.now() - begin;
@@ -239,6 +342,23 @@ export const completionsApi = new Elysia({
             }
             // Unreachable, unless upstream returned a malformed response
             return error(500, "Unexpected chunk");
+          }
+          if (isFirstChunk) {
+            logger.error("upstream error: no chunk received");
+            completion.status = "failed";
+            addCompletions(completion, bearer, {
+              level: "error",
+              message: "No chunk received",
+              details: {
+                type: "completionError",
+                data: {
+                  type: "upstreamError",
+                  status: 500,
+                  msg: "No chunk received",
+                },
+              },
+            });
+            return error(500, "No chunk received");
           }
           for await (const chunk of chunks) {
             // Continue to yield the rest of the chunks if needed

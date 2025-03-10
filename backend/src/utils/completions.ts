@@ -1,9 +1,12 @@
-import { findApiKey, insertCompletion } from "@/db";
+import { findApiKey, insertCompletion, insertLog, type SrvLogInsert } from "@/db";
 import type {
   CompletionsCompletionType,
   CompletionsPromptType,
   CompletionsStatusEnumType,
+  SrvLogDetailsType,
+  SrvLogsLevelEnumType,
 } from "@/db/schema";
+import consola from "consola";
 
 export type Completion = {
   model: string;
@@ -23,10 +26,38 @@ export type Completion = {
  * @param apiKey the key to use
  * @returns the new completion
  */
-export async function addCompletions(c: Completion, apiKey: string) {
+export async function addCompletions(
+  c: Completion,
+  apiKey: string,
+  log?: {
+    level: SrvLogsLevelEnumType;
+    message: string;
+    details?: {
+      type: "completionError";
+      data: {
+        type: string;
+        msg?: string;
+        status?: number;
+      };
+    };
+  },
+) {
   const keyId = apiKey === undefined ? -1 : ((await findApiKey(apiKey))?.id ?? -1);
-  return await insertCompletion({
+  const completion = await insertCompletion({
     apiKeyId: keyId,
     ...c,
   });
+  if (log !== undefined) {
+    if (completion === null) {
+      consola.error("Failed to insert completion");
+      return null;
+    }
+    await insertLog({
+      relatedApiKeyId: keyId,
+      relatedUpstreamId: completion.upstreamId,
+      relatedCompletionId: completion.id,
+      ...log,
+    });
+  }
+  return completion;
 }

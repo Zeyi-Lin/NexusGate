@@ -1,7 +1,7 @@
 import { treaty } from '@elysiajs/eden'
 import type { App } from 'nexus-gate-server'
 
-export const api = treaty<App>(location.origin, {
+export const api = treaty<App>(import.meta.env.PROD ? location.origin : import.meta.env.VITE_BASE_URL, {
   headers: () => {
     const adminSecret = localStorage.getItem('admin-secret')
     if (!adminSecret) return undefined
